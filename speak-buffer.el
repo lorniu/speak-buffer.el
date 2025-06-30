@@ -94,6 +94,8 @@
 
 (defvar speak-buffer-long-interval-factor 3)
 
+(defvar speak-buffer-length-threshold 20)
+
 (defvar speak-buffer--task nil)
 
 (defvar speak-buffer--buffer nil)
@@ -115,7 +117,7 @@ Also make sure that not too short content in the bounds."
     (skip-syntax-forward ".")
     ;; not too short
     (while (and (char-after) (not (eq (char-after) ?\n))
-                (< (- (point) beg) 20))
+                (< (- (point) beg) speak-buffer-length-threshold))
       (forward-sentence)
       (skip-syntax-forward "."))))
 
