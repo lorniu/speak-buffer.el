@@ -215,11 +215,16 @@ Also make sure that not too short content in the bounds."
                                  nil)))))
                    :fail
                    (lambda (r)
-                     (with-current-buffer buf (delete-overlay ov))
-                     (setq speak-buffer--task nil)
                      (unless (string-match-p "cancel" (format "%s" r))
-                       (message "Speak buffer error: %s" r))
-                     (if (consp r) (signal (car r) (cdr r)) (signal 'error r))))
+                       (with-current-buffer buf
+                         (message "Error when playing: %s"
+                                  (buffer-substring (overlay-start ov) (overlay-end ov)))
+                         (message "Speak buffer error: %s" r)))
+                     (delete-overlay ov)
+                     (setq speak-buffer--task nil)
+                     (if (consp r)
+                         (signal (car r) (cdr r))
+                       (signal 'error r))))
 
                ;; --- reach the end ---
                (delete-overlay ov)
