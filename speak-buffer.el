@@ -102,6 +102,7 @@
   (let ((map (make-sparse-keymap)))
     (define-key map [mouse-3] #'speak-buffer-interrupt)
     (define-key map (kbd "C-g") #'speak-buffer-interrupt)
+    (define-key map (kbd "SPC") #'speak-buffer-interrupt)
     map))
 
 (defun speak-buffer--forward-paragraph ()
@@ -118,8 +119,15 @@ Also make sure that not too short content in the bounds."
       (forward-sentence)
       (skip-syntax-forward "."))))
 
+(defun speak-buffer--at-speaking-paragraph ()
+  "Determine whether speaking paragraph is at point."
+  (and (buffer-live-p speak-buffer--buffer)
+       (cl-find-if (lambda (o) (eq (overlay-get o 'owner) 'speak-buffer))
+                   (with-current-buffer speak-buffer--buffer
+                     (overlays-at (point))))))
+
 (defun speak-buffer-interrupt ()
-  "Interrupt the runing speak buffer task."
+  "Interrupt the running speak buffer task."
   (interactive)
   (when speak-buffer--task
     (pdd-signal speak-buffer--task 'cancel)
@@ -136,87 +144,92 @@ Also make sure that not too short content in the bounds."
 (defun speak-buffer ()
   "Speak current buffer from current point."
   (interactive)
-  (speak-buffer-interrupt)
-  (setq speak-buffer--buffer (current-buffer))
+  ;; act as stop when speaking found at point
+  (if (speak-buffer--at-speaking-paragraph)
+      (speak-buffer-interrupt)
 
-  (let ((buf speak-buffer--buffer)
-        (ov (make-overlay 1 1 nil nil t)))
-    (overlay-put ov 'face speak-buffer-face)
-    (overlay-put ov 'keymap speak-buffer-map)
-    (overlay-put ov 'owner 'speak-buffer)
+    ;; a new playing
+    (speak-buffer-interrupt)
+    (setq speak-buffer--buffer (current-buffer))
 
-    (cl-labels
-        ((play-from (pos)
-           (if-let* ((bounds-list
-                      (save-excursion
-                        (goto-char pos)
-                        (skip-chars-forward " \t\n\r")
-                        (setq pos (point))
-                        (cl-loop repeat (1+ speak-buffer-prefetch-count)
-                                 for beg = (point) then (point)
-                                 for end = (save-excursion (funcall speak-buffer-step-action) (point))
-                                 while (funcall speak-buffer-step-pred beg end)
-                                 collect (cons beg end)
-                                 do (funcall speak-buffer-step-action))))
-                     (text-list (mapcar
-                                 (lambda (bds)
-                                   (funcall (or speak-buffer-text-filter #'identity)
-                                            (buffer-substring-no-properties (car bds) (cdr bds))))
-                                 bounds-list))
-                     (current (car bounds-list)) (gt-tts-cache-ttl speak-buffer-cache-time))
+    (let ((buf speak-buffer--buffer)
+          (ov (make-overlay 1 1 nil nil t)))
+      (overlay-put ov 'face speak-buffer-face)
+      (overlay-put ov 'keymap speak-buffer-map)
+      (overlay-put ov 'owner 'speak-buffer)
 
-               (pdd-chain (car text-list)
-                 (lambda (text)
-                   (with-current-buffer buf
-                     ;; 0. scroll & highlight
-                     (when-let* ((win (get-buffer-window buf))
-                                 (idle (float-time (or (current-idle-time) 0))))
-                       (when (or (not (eq (selected-window) win)) (> idle speak-buffer-idle-duration))
-                         (if (not (pos-visible-in-window-p (cdr current) win))
-                             ;; scroll only when the buffer is idle and not visible
-                             (with-selected-window win (goto-char pos) (recenter t))
-                           (goto-char pos))))
-                     (move-overlay ov (car current) (cdr current))
-                     (redisplay t)
-                     ;; 1. prefetch nexts
-                     (mapc (lambda (c)
-                             (let ((pdd-fail #'ignore))
-                               (gt-speech speak-buffer-engine c speak-buffer-language #'ignore)))
-                           (cdr text-list))
-                     ;; 2. play the current
-                     (setq speak-buffer--task (gt-speech speak-buffer-engine text speak-buffer-language))))
-                 (lambda (_)
-                   (with-current-buffer buf
-                     ;; 3. next loop
-                     (pdd-cacher-clear gt-tts-cache-store)
-                     (move-overlay ov (cdr current) (cdr current))
-                     (setq speak-buffer--task
-                           (pdd-delay (if (and (numberp speak-buffer-interval) (eq (char-after (cdr current)) ?\n))
-                                          ;; more delay time for paragraph end
-                                          (* speak-buffer-long-interval-factor speak-buffer-interval)
-                                        speak-buffer-interval)
-                             (lambda ()
-                               ;; post: play next paragraph
-                               (with-current-buffer buf (play-from (cdr current)))
-                               ;; post: decoupe promise chain
-                               nil)))))
-                 :fail
-                 (lambda (r)
-                   (with-current-buffer buf (delete-overlay ov))
-                   (setq speak-buffer--task nil)
-                   (unless (string-match-p "cancel" (format "%s" r))
-                     (message "Speak buffer error: %s" r))
-                   (if (consp r) (signal (car r) (cdr r)) (signal 'error r))))
+      (cl-labels
+          ((play-from (pos)
+             (if-let* ((bounds-list
+                        (save-excursion
+                          (goto-char pos)
+                          (skip-chars-forward " \t\n\r")
+                          (setq pos (point))
+                          (cl-loop repeat (1+ speak-buffer-prefetch-count)
+                                   for beg = (point) then (point)
+                                   for end = (save-excursion (funcall speak-buffer-step-action) (point))
+                                   while (funcall speak-buffer-step-pred beg end)
+                                   collect (cons beg end)
+                                   do (funcall speak-buffer-step-action))))
+                       (text-list (mapcar
+                                   (lambda (bds)
+                                     (funcall (or speak-buffer-text-filter #'identity)
+                                              (buffer-substring-no-properties (car bds) (cdr bds))))
+                                   bounds-list))
+                       (current (car bounds-list)) (gt-tts-cache-ttl speak-buffer-cache-time))
 
-             ;; --- reach the end ---
-             (delete-overlay ov)
-             (setq speak-buffer--task nil)
-             (if (functionp speak-buffer-final-action)
-                 (funcall speak-buffer-final-action)
-               (message "Speak buffer finished.")))))
+                 (pdd-chain (car text-list)
+                   (lambda (text)
+                     (with-current-buffer buf
+                       ;; 0. scroll & highlight
+                       (when-let* ((win (get-buffer-window buf))
+                                   (idle (float-time (or (current-idle-time) 0))))
+                         (when (or (not (eq (selected-window) win)) (> idle speak-buffer-idle-duration))
+                           (if (not (pos-visible-in-window-p (cdr current) win))
+                               ;; scroll only when the buffer is idle and not visible
+                               (with-selected-window win (goto-char pos) (recenter t))
+                             (goto-char pos))))
+                       (move-overlay ov (car current) (cdr current))
+                       (redisplay t)
+                       ;; 1. prefetch nexts
+                       (mapc (lambda (c)
+                               (let ((pdd-fail #'ignore))
+                                 (gt-speech speak-buffer-engine c speak-buffer-language #'ignore)))
+                             (cdr text-list))
+                       ;; 2. play the current
+                       (setq speak-buffer--task (gt-speech speak-buffer-engine text speak-buffer-language))))
+                   (lambda (_)
+                     (with-current-buffer buf
+                       ;; 3. next loop
+                       (pdd-cacher-clear gt-tts-cache-store)
+                       (move-overlay ov (cdr current) (cdr current))
+                       (setq speak-buffer--task
+                             (pdd-delay (if (and (numberp speak-buffer-interval) (eq (char-after (cdr current)) ?\n))
+                                            ;; more delay time for paragraph end
+                                            (* speak-buffer-long-interval-factor speak-buffer-interval)
+                                          speak-buffer-interval)
+                               (lambda ()
+                                 ;; post: play next paragraph
+                                 (with-current-buffer buf (play-from (cdr current)))
+                                 ;; post: decoupe promise chain
+                                 nil)))))
+                   :fail
+                   (lambda (r)
+                     (with-current-buffer buf (delete-overlay ov))
+                     (setq speak-buffer--task nil)
+                     (unless (string-match-p "cancel" (format "%s" r))
+                       (message "Speak buffer error: %s" r))
+                     (if (consp r) (signal (car r) (cdr r)) (signal 'error r))))
 
-      ;; play from current point
-      (play-from (point)))))
+               ;; --- reach the end ---
+               (delete-overlay ov)
+               (setq speak-buffer--task nil)
+               (if (functionp speak-buffer-final-action)
+                   (funcall speak-buffer-final-action)
+                 (message "Speak buffer finished.")))))
+
+        ;; play from current point
+        (play-from (point))))))
 
 (provide 'speak-buffer)
 
