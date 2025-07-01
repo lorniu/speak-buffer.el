@@ -15,19 +15,37 @@ Useful for listening to novels and articles, turning Emacs into a reading App.
 
 Install:
 ```emacs-lisp
+;; By default, native engine is used for speech,
+;; That is, `say' in macOS and `powershell' in Windows will be used out of box,
+;; For linux, `edge-tts' will be used if installed.
+
+(use-package speak-buffer
+  :vc (:url "https://github.com/lorniu/speak-buffer.el"))
+
+;; You can specify engine and custom it for better experience.
+
 (use-package speak-buffer
   :vc (:url "https://github.com/lorniu/speak-buffer.el")
   :config
   ;; See Customization section below
-  (setq speak-buffer-engine 'edge-tts))
+  (setq speak-buffer-language 'zh)
+  (setq speak-buffer-engine 'edge-tts)
+  (setq gt-tts-edge-tts-speed 1.9))
 ```
 
 Usage:
 *   `M-x speak-buffer`
-    Starts or restarts speaking from the current point.
+    Start, restart or stop speaking from the current point. If the cursor is at a speaking paragraph, just stop it, otherwise start a new speaking task from current point.
 
 *   `M-x speak-buffer-interrupt`
-    Stops the current speaking task. You can also stop by pressing `C-g` or `right click` on the highlighted region.
+    Stop the current speaking task. You can also stop by pressing `C-g`, `SPC` or `right click` on the highlighted region.
+
+*   Adjust the speech dynamically when speaking. Just change the variables, e.g.:
+    ```emacs-lisp
+    (setq gt-tts-edge-tts-speed 1.9)
+    (setq gt-tts-edge-tts-voice "...") ; or `M-x gt-tts-edge-tts-change-voice'
+    (setq speak-buffer-engine (gt-google-engine)) ; change engine dynamically
+    ```
 
 ## Customization
 
@@ -52,9 +70,10 @@ Here are some key variables:
 (setq gt-tts-edge-tts-speed 1.3)
 (setq gt-tts-edge-tts-pitch 12)
 
-;; Use TTS provided by LLM
+;; Use TTS engine provided by LLMs
 
-(setq speak-buffer-engine (gt-chatgpt-engine :tts-model ..))
+(setq speak-buffer-engine (gt-chatgpt-engine))
+(setq speak-buffer-engine (gt-chatgpt-engine :tts-model "tts-1"))
 
 ;; When reading is finished, automatically open the next chapter and start speaking
 ;; This is an example for users of nov.el

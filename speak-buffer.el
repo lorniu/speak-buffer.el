@@ -1,4 +1,4 @@
-;;; speak-buffer.el --- Speak buffer like in a reading App -*- lexical-binding: t -*-
+;;; speak-buffer.el --- Speak buffer paragraph by paragraph -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2025 lorniu <lorniu@gmail.com>
 
@@ -37,13 +37,12 @@
 ;;
 ;; 2. Usage:
 ;;
-;;    M-x speak-buffer/speak-buffer-interrupt
+;;    M-x speak-buffer / speak-buffer-interrupt
 ;;
 ;; See README.md of https://github.com/lorniu/speak-buffer.el for more
 
 ;;; Code:
 
-(require 'pdd)
 (require 'go-translate)
 
 (defgroup speak-buffer nil
