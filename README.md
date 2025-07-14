@@ -9,7 +9,7 @@ Useful for listening to novels and articles, turning Emacs into a reading App.
 *   **Asynchronous:** Never blocks Emacs during speech.
 *   **Prefetching:** Pre-loads the next paragraphs for smooth, uninterrupted playback.
 *   **Configurable:** Delays, faces, paragraph splitting logic, and end-of-buffer actions all are configurable.
-*   **Customizable Engine:** Supports any engine from its dependency (`go-translate`), including native OS tools, edge-tts, Google, and ChatGPT.
+*   **Customizable Engine:** Supports any engine from its dependency (`gt.el`), including native OS tools, edge-tts, Google, and ChatGPT.
 
 ## Start
 
@@ -97,7 +97,7 @@ Here are some key variables:
 ## Miscellaneous
 
 This served as a demonstration of the TTS API usage of package
-[go-translate](https://github.com/lorniu/go-translate).
+[gt.el](https://github.com/lorniu/gt.el).
 
 It's so practical and I use it every day. Now I'm glad to share with those people who need it.
 
