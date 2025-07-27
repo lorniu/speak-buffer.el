@@ -5,8 +5,8 @@
 ;; Author: lorniu <lorniu@gmail.com>
 ;; URL: https://github.com/lorniu/speak-buffer.el
 ;; License: GPL-3.0-or-later
-;; Package-Requires: ((emacs "28.1") (gt "3.1.0"))
-;; Version: 0.1
+;; Package-Requires: ((emacs "28.1") (gt "3.2.1"))
+;; Version: 0.1.1
 
 ;; This file is not part of GNU Emacs.
 
